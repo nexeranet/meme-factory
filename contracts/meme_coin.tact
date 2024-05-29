@@ -1,24 +1,171 @@
 import "@stdlib/deploy";
+import "@stdlib/ownable";
 import "./messages";
+import "./meme_wallet";
 
-contract MemeCoin with Deployable {
-    parent: Address;
+contract MemeCoin with Deployable, Ownable {
+    owner: Address;
+    mintable: Bool;
+    totalSupply: Int as coins = 0;
     seqno: Int as uint256;
-    name : String  = "";
-    description: String = "";
-    symbol: String = "";
-    totalAmount: Int as coins = 0;
-
-    init(parent: Address, seqno: Int) {
-        self.parent = parent; 
+    content: Cell?;
+    init(owner: Address, seqno: Int){
+        self.owner = owner;
         self.seqno = seqno;
+        self.mintable = true;
     }
 
-    receive(msg: NewMemeCoin) {
-        require(sender() == self.parent, "Parent only");
-        self.name = msg.name;
-        self.description = msg.description;
-        self.symbol = msg.symbol;
-        self.totalAmount = msg.amount;
+    receive(msg: InitialMint){
+        self.requireOwner();
+        self.content = JettonContent{name: msg.name, description: msg.description, symbol: msg.symbol}.toCell();
+        self.mint(myAddress(), msg.amount, myAddress());
+    }
+
+    receive(msg: TokenUpdateContent){
+        // Allow changing content only by owner
+        self.requireOwner();
+        // Update content
+        self.content = msg.content;
+    }
+
+    receive(msg: TokenBurnNotification){
+        // Check wallet
+        self.requireWallet(msg.owner);
+        // Update supply
+        self.totalSupply = (self.totalSupply - msg.amount);
+        // Cashback
+        if (msg.responseAddress != null) {
+            send(SendParameters{
+                    to: msg.responseAddress!!,
+                    value: 0,
+                    bounce: false,
+                    mode: (SendRemainingValue + SendIgnoreErrors),
+                    body: TokenExcesses{queryId: msg.queryId}.toCell()
+                }
+            );
+        }
+    }
+
+    receive(msg: BuyCoins) {
+        require(context().value >= self.getPrice(msg.amount), "Not enough funds");
+        // Create message
+        let destination: StateInit = self.getMemeWalletInit(sender());
+        let destinationAddress: Address = contractAddress(destination);
+        let responseDestination: StateInit = self.getMemeWalletInit(myAddress());
+        let responseDestinationAddress: Address = contractAddress(responseDestination);
+        send(SendParameters{
+                to: destinationAddress,
+                value: 0,
+                bounce: false,
+                mode: SendRemainingValue,
+                body: TokenTransfer{
+                    queryId: 0,
+                    amount: msg.amount,
+                    destination: destinationAddress,
+                    responseDestination: responseDestinationAddress,
+                    forwardTonAmount: 0,
+                    customPayload: beginCell().endCell(),
+                    forwardPayload: emptySlice()
+                }.toCell(),
+                code: destination.code,
+                data: destination.data
+            }
+        );
+    }
+
+    receive(msg: SellCoins) {
+        let price: Int = self.getPrice(msg.amount);
+        require(myBalance() >= price, "Not enough funds");
+        // Create message
+        let destination: StateInit = self.getMemeWalletInit(myAddress());
+        let destinationAddress: Address = contractAddress(destination);
+        let responseDestination: StateInit = self.getMemeWalletInit(sender());
+        let responseDestinationAddress: Address = contractAddress(responseDestination);
+        send(SendParameters{
+                to: destinationAddress,
+                value: price,
+                bounce: false,
+                mode: SendRemainingValue,
+                body: TokenTransfer{
+                    queryId: 0,
+                    amount: msg.amount,
+                    destination: destinationAddress,
+                    responseDestination: responseDestinationAddress,
+                    forwardTonAmount: 0,
+                    customPayload: beginCell().endCell(),
+                    forwardPayload: emptySlice()
+                }.toCell(),
+                code: destination.code,
+                data: destination.data
+            }
+        );
+    }
+    // Get Methods
+    //
+
+    get fun get_wallet_address(owner: Address): Address {
+        let winit: StateInit = self.getMemeWalletInit(owner);
+        return contractAddress(winit);
+    }
+
+    get fun get_jetton_data(): JettonData {
+        let code: Cell = self.getMemeWalletInit(myAddress()).code;
+        return
+            JettonData{
+                totalSupply: self.totalSupply,
+                mintable: self.mintable,
+                owner: self.owner,
+                content: self.content,
+                walletCode: code
+            };
+    }
+
+    get fun get_price(amount: Int): Int{
+        return self.getPrice(amount);
+    }
+
+    //
+    // Private Methods
+    //
+
+    fun getPrice(amount: Int): Int {
+        return amount * 1; 
+    }
+
+    fun mint(to: Address, amount: Int, responseAddress: Address) {
+        // Update total supply
+        self.totalSupply = (self.totalSupply + amount);
+        // Create message
+        let winit: StateInit = self.getMemeWalletInit(to);
+        let walletAddress: Address = contractAddress(winit);
+        self.mintable = false;
+        send(SendParameters{
+                to: walletAddress,
+                value: 0,
+                bounce: false,
+                mode: SendRemainingValue,
+                body: TokenTransferInternal{
+                    amount: amount,
+                    queryId: 0,
+                    from: myAddress(),
+                    responseAddress: responseAddress,
+                    forwardTonAmount: 0,
+                    forwardPayload: emptySlice()
+                }.toCell(),
+                code: winit.code,
+                data: winit.data
+            }
+        );
+        self.reply("Minted".asComment()); 
+    }
+
+    fun requireWallet(owner: Address) {
+        let ctx: Context = context();
+        let winit: StateInit = self.getMemeWalletInit(owner);
+        require(contractAddress(winit) == ctx.sender, "Invalid sender");
+    }
+
+    fun getMemeWalletInit(address: Address): StateInit {
+        return initOf MemeWallet(myAddress(), address);
     }
 }
