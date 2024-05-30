@@ -7,6 +7,7 @@ contract MemeCoin with Deployable, Ownable {
     owner: Address;
     mintable: Bool;
     totalSupply: Int as coins = 0;
+    balance: Int as coins = 0; 
     seqno: Int as uint256;
     content: Cell?;
     init(owner: Address, seqno: Int){
@@ -49,26 +50,24 @@ contract MemeCoin with Deployable, Ownable {
     receive(msg: BuyCoins) {
         require(context().value >= self.getPrice(msg.amount), "Not enough funds");
         // Create message
-        let destination: StateInit = self.getMemeWalletInit(sender());
-        let destinationAddress: Address = contractAddress(destination);
-        let responseDestination: StateInit = self.getMemeWalletInit(myAddress());
-        let responseDestinationAddress: Address = contractAddress(responseDestination);
+        let winit: StateInit = self.getMemeWalletInit(sender());
+        let walletAddres: Address = contractAddress(winit);
+        self.balance = self.balance - msg.amount;
         send(SendParameters{
-                to: destinationAddress,
+                to: walletAddress,
                 value: 0,
                 bounce: false,
                 mode: SendRemainingValue,
-                body: TokenTransfer{
-                    queryId: 0,
+                body: TokenTransferInternal{
                     amount: msg.amount,
-                    destination: destinationAddress,
-                    responseDestination: responseDestinationAddress,
+                    queryId: 0,
+                    from: myAddress(),
+                    responseAddress: sender(),
                     forwardTonAmount: 0,
-                    customPayload: beginCell().endCell(),
                     forwardPayload: emptySlice()
                 }.toCell(),
-                code: destination.code,
-                data: destination.data
+                code: winit.code,
+                data: winit.data
             }
         );
     }
@@ -76,10 +75,11 @@ contract MemeCoin with Deployable, Ownable {
     receive(msg: SellCoins) {
         let price: Int = self.getPrice(msg.amount);
         require(myBalance() >= price, "Not enough funds");
+        self.balance = self.balance + msg.amount;
         // Create message
-        let destination: StateInit = self.getMemeWalletInit(myAddress());
+        let destination: StateInit = self.getMemeWalletInit(sender());
         let destinationAddress: Address = contractAddress(destination);
-        let responseDestination: StateInit = self.getMemeWalletInit(sender());
+        let responseDestination: StateInit = self.getMemeWalletInit(myAddress());
         let responseDestinationAddress: Address = contractAddress(responseDestination);
         send(SendParameters{
                 to: destinationAddress,
@@ -100,8 +100,41 @@ contract MemeCoin with Deployable, Ownable {
             }
         );
     }
+    // https://github.com/ton-blockchain/TEPs/blob/master/text/0089-jetton-wallet-discovery.md
+    receive(msg: ProvideWalletAddress) { // 0x2c76b973
+        require(context().value >= ton("0.0061"), "Insufficient gas");
+        let init: StateInit = initOf MemeWallet(msg.owner_address, myAddress());
+        if (msg.include_address) {
+            send(SendParameters{
+                to: sender(),
+                value: 0,
+                mode: SendRemainingValue,
+                body: TakeWalletAddress{
+                    query_id: msg.query_id,
+                    wallet_address: contractAddress(init),
+                    owner_address: beginCell().storeBool(true).storeAddress(msg.owner_address).endCell().asSlice()
+                }.toCell()
+            });
+        } else {
+            send(SendParameters{
+                to: sender(),
+                value: 0,
+                mode: SendRemainingValue,
+                body: TakeWalletAddress { // 0xd1735400
+                    query_id: msg.query_id,
+                    wallet_address: contractAddress(init),
+                    owner_address: beginCell().storeBool(false).endCell().asSlice()
+                }.toCell()
+            });
+        }
+    }
+
     // Get Methods
     //
+
+    get fun balance(): Int {
+        return self.balance;
+    }
 
     get fun get_wallet_address(owner: Address): Address {
         let winit: StateInit = self.getMemeWalletInit(owner);
@@ -134,28 +167,9 @@ contract MemeCoin with Deployable, Ownable {
 
     fun mint(to: Address, amount: Int, responseAddress: Address) {
         // Update total supply
-        self.totalSupply = (self.totalSupply + amount);
-        // Create message
-        let winit: StateInit = self.getMemeWalletInit(to);
-        let walletAddress: Address = contractAddress(winit);
+        self.totalSupply = self.totalSupply + amount;
         self.mintable = false;
-        send(SendParameters{
-                to: walletAddress,
-                value: 0,
-                bounce: false,
-                mode: SendRemainingValue,
-                body: TokenTransferInternal{
-                    amount: amount,
-                    queryId: 0,
-                    from: myAddress(),
-                    responseAddress: responseAddress,
-                    forwardTonAmount: 0,
-                    forwardPayload: emptySlice()
-                }.toCell(),
-                code: winit.code,
-                data: winit.data
-            }
-        );
+        self.balance = self.totalSupply + amount;
         self.reply("Minted".asComment()); 
     }
 

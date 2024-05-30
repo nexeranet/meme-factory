@@ -1,5 +1,6 @@
 import "@stdlib/deploy";
 import "./messages";
+import "./constants";
 
 contract MemeWallet with Deployable {
     master: Address;
@@ -18,15 +19,16 @@ contract MemeWallet with Deployable {
         let ctx: Context = context();
         require(ctx.sender == self.owner, "Invalid sender");
         // Update balance
-        self.balance = (self.balance - msg.amount);
-        require(self.balance >= 0, "Invalid balance");
+        let newBalance: Int = (self.balance - msg.amount);
+        require(newBalance >= 0, "Invalid balance");
+        self.balance = newBalance;
         // Gas checks
         let fwdFee: Int = ctx.readForwardFee();
         let fwdCount: Int = 1;
         if (msg.forwardTonAmount > 0) {
             fwdCount = 2;
         }
-        require(ctx.value > ((fwdCount * fwdFee + 2 * self.gasConsumption) + self.minTonsForStorage), "Invalid value");
+        require(ctx.value > gasCheckConsumption(fwdFee, fwdCount), "Not enough funds for gas consumption");
         // Send tokens
         let init: StateInit = initOf MemeWallet(self.master, msg.destination);
         let walletAddress: Address = contractAddress(init);
@@ -62,8 +64,8 @@ contract MemeWallet with Deployable {
         // Adjust value for gas
         let msgValue: Int = ctx.value;
         let tonBalanceBeforeMsg: Int = (myBalance() - msgValue);
-        let storageFee: Int = (self.minTonsForStorage - min(tonBalanceBeforeMsg, self.minTonsForStorage));
-        msgValue = (msgValue - (storageFee + self.gasConsumption));
+        let storageFee: Int = (MIN_TONS_FOR_STORAGE - min(tonBalanceBeforeMsg, MIN_TONS_FOR_STORAGE));
+        msgValue = (msgValue - (storageFee + GAS_CONSUMPTION));
         // Forward ton
         if (msg.forwardTonAmount > 0) {
             let fwdFee: Int = ctx.readForwardFee();

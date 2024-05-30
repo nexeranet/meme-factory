@@ -14,6 +14,7 @@ contract MemeFactory with Deployable, OwnableTransferable, Resumable {
     }
 
     receive(msg: NewMemeCoin){
+        require(context().value >= ton("1"), "Not enough funds");
         self.numCoins += 1;
         let init: StateInit = initOf MemeCoin(myAddress(), self.numCoins);
         send(SendParameters{
@@ -25,7 +26,7 @@ contract MemeFactory with Deployable, OwnableTransferable, Resumable {
                     decimals: msg.decimals,
                     amount: msg.amount,
                 }.toCell(),
-                value: ton("0.2"),
+                value: context.value,
                 mode: SendIgnoreErrors,
                 code: init.code,
                 data: init.data
