@@ -51,6 +51,16 @@ contract MemeWallet with Deployable {
         );
     }
 
+    receive(msg: TokenWithdraw){  
+        // Check sender
+        require(sender() == self.master, "Only master");
+        require(msg.from == self.owner, "Only owner");
+        // Update balance
+        let newBalance: Int = (self.balance - msg.amount);
+        require(newBalance >= 0, "Invalid balance");
+        self.balance = newBalance;
+    }
+
     receive(msg: TokenTransferInternal){
         // Check sender
         let ctx: Context = context();

@@ -8,15 +8,18 @@ contract MemeFactory with Deployable, OwnableTransferable, Resumable {
     owner: Address;
     stopped: Bool;
     numCoins: Int as uint256 = 0;
+    const MinTonForStorage: Int = ton("0.01");
     init(){
         self.owner = sender();
         self.stopped = false;
     }
 
     receive(msg: NewMemeCoin){
-        require(context().value >= ton("1"), "Not enough funds");
+        let ctx: Context = context();
+        require(ctx.value >= ton("1"), "Not enough funds");
         self.numCoins += 1;
         let init: StateInit = initOf MemeCoin(myAddress(), self.numCoins);
+        let leftValue: Int = (ctx.value - ton("1"));
         send(SendParameters{
                 to: contractAddress(init),
                 body: InitialMint{
@@ -24,16 +27,26 @@ contract MemeFactory with Deployable, OwnableTransferable, Resumable {
                     description: msg.description,
                     symbol: msg.symbol,
                     decimals: msg.decimals,
-                    amount: msg.amount,
+                    amount: msg.amount
                 }.toCell(),
-                value: context.value,
+                value: ton("0.5"),
                 mode: SendIgnoreErrors,
                 code: init.code,
                 data: init.data
             }
         );
-        self.reply(self.numCoins.toString().asComment());
-        //self.reply(NewMemeCoinResponse{seqno: self.numCoins}.toCell().asComments());
+        let backValue: Int = 0;
+        if (leftValue > 0) {
+            backValue = leftValue;
+        }
+        send(SendParameters{
+                to: ctx.sender,
+                value: leftValue,
+                bounce: false,
+                mode: SendIgnoreErrors,
+                body: NewMemeCoinResponse{seqno: self.numCoins}.toCell()
+            }
+        );
     }
 
     get fun numCoins(): Int {
