@@ -27,7 +27,8 @@ contract MemeFactory with Deployable, OwnableTransferable, Resumable {
                     description: msg.description,
                     symbol: msg.symbol,
                     decimals: msg.decimals,
-                    amount: msg.amount
+                    amount: msg.amount,
+                    creator: ctx.sender
                 }.toCell(),
                 value: ton("0.5"),
                 mode: SendIgnoreErrors,

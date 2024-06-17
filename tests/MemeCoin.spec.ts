@@ -54,6 +54,7 @@ describe('MemeCoin', () => {
             symbol: "NEW",
             decimals: "9",
             amount: toNano("100.0"),
+            creator: deployer.address,
         }
 
         await memeCoin.send(deployer.getSender(), {
@@ -82,6 +83,7 @@ describe('MemeCoin', () => {
             symbol: "NEW",
             decimals: "9",
             amount: 100n,
+            creator: deployer.address,
         }
 
         await memeCoin.send(deployer.getSender(), {

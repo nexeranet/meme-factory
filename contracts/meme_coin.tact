@@ -11,6 +11,7 @@ contract MemeCoin with Deployable, Ownable {
     reserved: Int as coins = 0;
     balance: Int as coins = 0;
     seqno: Int as uint256;
+    creator: Address?;
     content: Cell?;
     init(owner: Address, seqno: Int){
         self.owner = owner;
@@ -21,7 +22,8 @@ contract MemeCoin with Deployable, Ownable {
     receive(msg: InitialMint){
         self.requireOwner();
         self.content = JettonContent{name: msg.name, description: msg.description, symbol: msg.symbol}.toCell();
-        self.mint(myAddress(), msg.amount, myAddress());
+        self.creator = msg.creator;
+        self.mint(myAddress(), msg.amount, msg.creator);
     }
 
     receive(msg: TokenUpdateContent){
@@ -95,8 +97,7 @@ contract MemeCoin with Deployable, Ownable {
         // Create message
         let destination: StateInit = self.getMemeWalletInit(ctx.sender);
         let destinationAddress: Address = contractAddress(destination);
-        let leftFunds: Int = ctx.value - ton("0.1");
-
+        let leftFunds: Int = (ctx.value - ton("0.1"));
         send(SendParameters{
                 to: destinationAddress,
                 value: ton("0.1"),
@@ -190,7 +191,14 @@ contract MemeCoin with Deployable, Ownable {
         self.totalSupply = amount;
         self.mintable = false;
         self.balance = amount;
-        self.reply("Minted".asComment());
+        send(SendParameters{
+                to: responseAddress,
+                value: 0,
+                bounce: false,
+                mode: SendIgnoreErrors,
+                body: "Minted".asComment()
+            }
+        );
     }
 
     fun requireWallet(owner: Address) {

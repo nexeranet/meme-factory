@@ -42,7 +42,7 @@ message(0xd53276db) TokenExcesses {
     queryId: Int as uint64;
 }
 
-message TokenUpdateContent {
+message(0x00030D40) TokenUpdateContent {
     content: Cell?;
 }
 
@@ -60,13 +60,22 @@ message(0xd1735400) TakeWalletAddress {
     wallet_address: Address;
     owner_address: Slice as remaining;
 }
-message TokenWithdraw {
+message(0x000493e0) TokenWithdraw {
     queryId: Int as uint64;
     amount: Int as coins;
     from: Address;
 }
 
-message InitialMint {
+message(0x00061a80) InitialMint {
+    name: String;
+    description: String;
+    symbol: String;
+    decimals: String;
+    amount: Int as uint256;
+    creator: Address;
+}
+
+message(0x0007a120) NewMemeCoin {
     name: String;
     description: String;
     symbol: String;
@@ -74,19 +83,11 @@ message InitialMint {
     amount: Int as uint256;
 }
 
-message NewMemeCoin {
-    name: String;
-    description: String;
-    symbol: String;
-    decimals: String;
+message(0x000927c0) BuyCoins {
     amount: Int as uint256;
 }
 
-message BuyCoins {
-    amount: Int as uint256;
-}
-
-message SellCoins {
+message(0x000a00c3) SellCoins {
     amount: Int as uint256;
 }
 
