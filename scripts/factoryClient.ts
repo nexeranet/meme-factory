@@ -19,16 +19,16 @@ export async function run(provider: NetworkProvider) {
     let result = await factoryContract.send(
         provider.sender(),
         {
-            value: toNano('1.5'),
+            value: toNano('1.2'),
             bounce: false
         },
         {
             $$type: 'NewMemeCoin',
-            name: "Test",
-            description: "Test coin",
-            symbol: "TEST",
+            name: "Test2",
+            description: "Test coin2",
+            symbol: "TEST2",
             decimals: "9",
-            amount: 10000n
+            amount: 1000n
         }
     );
     console.log(result);

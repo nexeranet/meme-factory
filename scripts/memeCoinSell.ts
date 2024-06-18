@@ -1,6 +1,6 @@
 import { getHttpEndpoint } from "@orbs-network/ton-access";
 import { TonClient, Address, fromNano, toNano, Cell } from "@ton/ton";
-import { MemeCoin, BuyCoins } from "../wrappers/MemeCoin"; // this is the interface class we just implemented
+import { MemeCoin, SellCoins } from "../wrappers/MemeCoin"; // this is the interface class we just implemented
 import { NetworkProvider } from '@ton/blueprint';
 
 export async function run(provider: NetworkProvider) {
@@ -15,5 +15,22 @@ export async function run(provider: NetworkProvider) {
 
     // call the getter on chain
     const data = await contract.getGetJettonData();
-    console.log(data);
+    console.log("Jettons have", data.totalSupply);
+
+    const message: SellCoins = {
+        $$type: 'SellCoins',
+        amount: 10n,
+    }
+    let result = await contract.send(
+        provider.sender(),
+        {
+            value: toNano('0.1'),
+            bounce: false
+        },
+        message
+    );
+    console.log(result)
+    const dataLeft = await contract.getGetJettonData();
+    
+    console.log("Jettons left", dataLeft.totalSupply);
 }
